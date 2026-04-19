@@ -29,6 +29,12 @@
         }
         .slide-up { animation: fadeInSlideUp 0.5s ease-out forwards; }
         .slide-right { animation: fadeInSlideLeft 0.3s ease-out forwards; }
+        
+        /* Custom scrollbar for file list */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     </style>
 </head>
 <body class="bg-white text-slate-900 font-sans min-h-screen flex flex-col items-center p-6">
@@ -45,8 +51,8 @@
         const IconShare = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>;
         const IconUpload = () => <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>;
         const IconDownload = () => <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>;
-        const IconFile = () => <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>;
-        const IconFileCheck = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="m9 15 2 2 4-4"/></svg>;
+        const IconFile = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>;
+        const IconFileCheck = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="m9 15 2 2 4-4"/></svg>;
         const IconCopy = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>;
         const IconLoader = () => <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>;
         const IconAlert = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>;
@@ -54,19 +60,17 @@
         const IconFiles = () => <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>;
 
         function App() {
-            const [mode, setMode] = useState('idle'); // idle, send_setup, receive_setup, send, receive
-            const [connectionState, setConnectionState] = useState('disconnected'); // disconnected, connecting, connected, transferring, completed
+            const [mode, setMode] = useState('idle'); 
+            const [connectionState, setConnectionState] = useState('disconnected'); 
             const [pairingCode, setPairingCode] = useState('');
             const [errorMessage, setErrorMessage] = useState('');
             const [progress, setProgress] = useState(0);
             
             // Multiple Files State
             const [selectedFiles, setSelectedFiles] = useState([]);
+            const [fileManifest, setFileManifest] = useState([]); // Array of { name, size }
             const [currentFileIndex, setCurrentFileIndex] = useState(0);
-            const [totalExpectedFiles, setTotalExpectedFiles] = useState(0);
             
-            const [receivedFileMeta, setReceivedFileMeta] = useState(null);
-
             const peerRef = useRef(null);
             const connRef = useRef(null);
             const receiveBufferRef = useRef([]);
@@ -89,9 +93,8 @@
                 setErrorMessage('');
                 setProgress(0);
                 setSelectedFiles([]);
+                setFileManifest([]);
                 setCurrentFileIndex(0);
-                setTotalExpectedFiles(0);
-                setReceivedFileMeta(null);
             };
 
             // 1. SENDER LOGIC (Host)
@@ -112,8 +115,11 @@
                     
                     conn.on('open', () => {
                         setConnectionState('connected');
+                        // Send the full list of files to the receiver first
+                        conn.send({ type: 'manifest', files: fileManifest });
+                        
                         // Start sending the first file with a slight delay
-                        setTimeout(() => sendNextFile(conn, 0), 500);
+                        setTimeout(() => sendNextFile(conn, 0), 1000);
                     });
                     
                     conn.on('close', () => {
@@ -129,7 +135,6 @@
             };
 
             const sendNextFile = (conn, index) => {
-                // If we've sent all files, signal completion
                 if (index >= selectedFiles.length) {
                     conn.send({ type: 'all_done' });
                     setConnectionState('completed');
@@ -143,18 +148,15 @@
                 const chunkSize = 65536; // 64KB chunks
                 let offset = 0;
 
-                // Send Metadata for the current file
                 conn.send({ 
                     type: 'meta', 
                     name: file.name, 
                     size: file.size, 
                     mimeType: file.type,
-                    fileIndex: index,
-                    totalFiles: selectedFiles.length
+                    fileIndex: index
                 });
 
                 const readNextChunk = () => {
-                    // Prevent memory overflow by checking buffer amount
                     if (conn.dataChannel && conn.dataChannel.bufferedAmount > 1024 * 1024 * 2) {
                         setTimeout(readNextChunk, 50);
                         return;
@@ -169,10 +171,9 @@
                         if (offset < file.size) {
                             readNextChunk();
                         } else {
-                            // File complete
                             conn.send({ type: 'eof' });
-                            // Delay slightly to let receiver process and download before starting the next file
-                            setTimeout(() => sendNextFile(conn, index + 1), 500);
+                            // Wait 1.5 seconds between files so the browser doesn't block multiple automatic downloads
+                            setTimeout(() => sendNextFile(conn, index + 1), 1500);
                         }
                     });
                 };
@@ -195,14 +196,8 @@
                     const conn = peer.connect(APP_PREFIX + code, { reliable: true });
                     connRef.current = conn;
 
-                    conn.on('open', () => {
-                        setConnectionState('connected');
-                    });
-
-                    conn.on('data', (data) => {
-                        handleReceiveMessage(data);
-                    });
-
+                    conn.on('open', () => setConnectionState('connected'));
+                    conn.on('data', (data) => handleReceiveMessage(data));
                     conn.on('close', () => {
                         if (connectionState !== 'completed') setConnectionState('disconnected');
                     });
@@ -215,12 +210,13 @@
             };
 
             const handleReceiveMessage = (data) => {
-                if (data && data.type === 'meta') {
+                if (data && data.type === 'manifest') {
+                    // Receive the full list of files upfront
+                    setFileManifest(data.files);
+                } else if (data && data.type === 'meta') {
                     // New file is starting
-                    setReceivedFileMeta(data);
                     receivedFileMetaRef.current = data;
                     setCurrentFileIndex(data.fileIndex);
-                    setTotalExpectedFiles(data.totalFiles);
                     setConnectionState('transferring');
                     receiveBufferRef.current = [];
                     receivedSizeRef.current = 0;
@@ -230,18 +226,15 @@
                     setProgress(100);
                     downloadFile();
                 } else if (data && data.type === 'all_done') {
-                    // Entire batch finished
                     setConnectionState('completed');
                 } else {
                     // Binary File Data
                     receiveBufferRef.current.push(data);
                     receivedSizeRef.current += data.byteLength;
-                    setReceivedFileMeta(prev => {
-                        if (prev && prev.size > 0) {
-                            setProgress(Math.min(100, Math.round((receivedSizeRef.current / prev.size) * 100)));
-                        }
-                        return prev;
-                    });
+                    const meta = receivedFileMetaRef.current;
+                    if (meta && meta.size > 0) {
+                        setProgress(Math.min(100, Math.round((receivedSizeRef.current / meta.size) * 100)));
+                    }
                 }
             };
 
@@ -258,16 +251,14 @@
                 a.click();
                 document.body.removeChild(a);
                 
-                // Cleanup URL object to free memory
-                setTimeout(() => URL.revokeObjectURL(url), 1000);
+                setTimeout(() => URL.revokeObjectURL(url), 2000);
             };
 
             const copyCode = () => {
                 navigator.clipboard.writeText(pairingCode).catch(()=>{});
             };
 
-            // Calculate total size for UI
-            const totalSelectedSize = selectedFiles.reduce((acc, file) => acc + file.size, 0);
+            const totalSelectedSize = fileManifest.reduce((acc, file) => acc + file.size, 0);
 
             // 3. RENDER UI
             return (
@@ -319,9 +310,12 @@
                                             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" 
                                             onChange={e => {
                                                 if (e.target.files && e.target.files.length > 0) {
-                                                    setSelectedFiles(Array.from(e.target.files));
+                                                    const files = Array.from(e.target.files);
+                                                    setSelectedFiles(files);
+                                                    setFileManifest(files.map(f => ({ name: f.name, size: f.size })));
                                                 } else {
                                                     setSelectedFiles([]);
+                                                    setFileManifest([]);
                                                 }
                                             }} 
                                         />
@@ -366,7 +360,9 @@
                         )}
 
                         {(mode === 'send' || mode === 'receive') && (
-                            <div className="space-y-8 py-4 slide-right">
+                            <div className="space-y-6 py-4 slide-right">
+                                
+                                {/* Status Header */}
                                 <div className="text-center space-y-3">
                                     {connectionState === 'connecting' && (
                                         <><div className="text-black flex justify-center"><IconLoader /></div>
@@ -380,7 +376,7 @@
                                         <><div className="w-12 h-12 bg-gray-200 text-black rounded-full flex items-center justify-center mx-auto">
                                             {mode === 'send' ? <IconUpload /> : <IconDownload />}
                                         </div>
-                                        <h2 className="text-xl font-bold">{mode === 'send' ? 'Sending...' : 'Receiving...'}</h2></>
+                                        <h2 className="text-xl font-bold">{mode === 'send' ? 'Sending Files...' : 'Receiving Files...'}</h2></>
                                     )}
                                     {connectionState === 'completed' && (
                                         <><div className="w-12 h-12 bg-green-500 text-white rounded-full flex items-center justify-center mx-auto"><IconFileCheck /></div>
@@ -392,6 +388,7 @@
                                     )}
                                 </div>
 
+                                {/* Pairing Code Box for Sender */}
                                 {mode === 'send' && connectionState === 'connecting' && (
                                     <div className="bg-slate-50 rounded-2xl p-6 text-center border border-slate-200">
                                         <p className="text-sm text-slate-500 mb-2">Share this code with the receiver</p>
@@ -402,34 +399,52 @@
                                     </div>
                                 )}
 
-                                {(connectionState === 'transferring' || (mode === 'send' && connectionState === 'connecting')) && (
-                                    <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200">
-                                        <div className="flex items-center gap-4 mb-5">
-                                            <div className="p-3 bg-white border border-slate-200 rounded-xl"><IconFile /></div>
-                                            <div className="flex-1 overflow-hidden">
-                                                <h3 className="font-semibold truncate">
-                                                    {mode === 'send' ? selectedFiles[currentFileIndex]?.name : receivedFileMeta?.name || 'Waiting for metadata...'}
-                                                </h3>
-                                                <p className="text-xs text-slate-500 font-medium mt-1">
-                                                    {mode === 'send' 
-                                                        ? `${(selectedFiles[currentFileIndex]?.size / 1024 / 1024).toFixed(2)} MB` 
-                                                        : receivedFileMeta ? `${(receivedFileMeta.size / 1024 / 1024).toFixed(2)} MB` : ''}
-                                                    {((mode === 'send' && selectedFiles.length > 0) || (mode === 'receive' && totalExpectedFiles > 0)) && (
-                                                        <span> • File {currentFileIndex + 1} of {mode === 'send' ? selectedFiles.length : totalExpectedFiles}</span>
-                                                    )}
-                                                </p>
-                                            </div>
+                                {/* Individual Files List UI */}
+                                {(connectionState === 'transferring' || connectionState === 'completed' || (mode === 'send' && connectionState === 'connecting' && fileManifest.length > 0)) && (
+                                    <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200">
+                                        <div className="mb-3 px-2 flex justify-between items-end">
+                                            <span className="text-sm font-bold text-slate-700">Files ({fileManifest.length})</span>
+                                            <span className="text-xs text-slate-500">{(totalSelectedSize / 1024 / 1024).toFixed(2)} MB</span>
                                         </div>
-                                        <div className="space-y-2">
-                                            <div className="flex justify-between text-sm">
-                                                <span className="text-slate-500 font-semibold">Current File Progress</span>
-                                                <span className="text-black font-bold">{progress}%</span>
-                                            </div>
-                                            <div className="h-3 bg-slate-200 rounded-full overflow-hidden">
-                                                <div className="h-full bg-black transition-all duration-300 relative" style={{ width: `${progress}%` }}>
-                                                    {connectionState === 'transferring' && <div className="absolute inset-0 bg-white/20 animate-pulse"></div>}
-                                                </div>
-                                            </div>
+                                        
+                                        <div className="max-h-60 overflow-y-auto space-y-2 pr-2">
+                                            {fileManifest.map((file, idx) => {
+                                                const isCompleted = connectionState === 'completed' || idx < currentFileIndex;
+                                                const isTransferring = connectionState === 'transferring' && idx === currentFileIndex;
+                                                const isPending = connectionState === 'connecting' || idx > currentFileIndex;
+
+                                                return (
+                                                    <div key={idx} className={`p-3 rounded-xl border flex items-center justify-between transition-colors ${
+                                                        isTransferring ? 'bg-white border-black shadow-sm' : 
+                                                        isCompleted ? 'bg-white border-slate-200 opacity-70' : 
+                                                        'bg-transparent border-transparent'
+                                                    }`}>
+                                                        <div className="flex items-center gap-3 overflow-hidden">
+                                                            <div className={`p-2 rounded-lg ${isCompleted ? 'bg-green-100 text-green-600' : isTransferring ? 'bg-gray-100 text-black' : 'bg-slate-200 text-slate-400'}`}>
+                                                                {isCompleted ? <IconFileCheck /> : <IconFile />}
+                                                            </div>
+                                                            <div className="truncate">
+                                                                <p className={`text-sm font-semibold truncate ${isTransferring ? 'text-black' : 'text-slate-600'}`}>{file.name}</p>
+                                                                <p className="text-xs text-slate-500">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Status Indicator */}
+                                                        <div className="ml-4 shrink-0 w-12 text-right">
+                                                            {isTransferring && (
+                                                                <div className="flex flex-col items-end gap-1">
+                                                                    <span className="text-xs font-bold text-black">{progress}%</span>
+                                                                    <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                                                                        <div className="h-full bg-black transition-all" style={{width: `${progress}%`}}></div>
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                            {isCompleted && <span className="text-xs font-bold text-green-600 flex justify-end"><IconFileCheck /></span>}
+                                                            {isPending && !isTransferring && <span className="text-xs font-medium text-slate-400">...</span>}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                 )}
