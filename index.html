@@ -18,6 +18,9 @@
     <!-- 4. PeerJS (Replaces Firebase for WebRTC Signaling) -->
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 
+    <!-- 5. StreamSaver (For Live Streaming Downloads directly to disk) -->
+    <script src="https://cdn.jsdelivr.net/npm/streamsaver@2.0.5/StreamSaver.min.js"></script>
+
     <style>
         @keyframes fadeInSlideUp {
             from { opacity: 0; transform: translateY(1rem); }
@@ -70,27 +73,28 @@
             const [selectedFiles, setSelectedFiles] = useState([]);
             const [fileManifest, setFileManifest] = useState([]); // Array of { name, size }
             const [currentFileIndex, setCurrentFileIndex] = useState(0);
-            
-            // State for manual download links
-            const [fileUrls, setFileUrls] = useState({});
 
             const peerRef = useRef(null);
             const connRef = useRef(null);
-            const receiveBufferRef = useRef([]);
+            
+            const receiveBufferRef = useRef(null); // Used only as a fallback if StreamSaver fails
+            const writerRef = useRef(null); // StreamSaver direct-to-disk writer
             const receivedSizeRef = useRef(0);
             const receivedFileMetaRef = useRef(null);
-            const fileUrlsRef = useRef({});
 
             const cleanupWebRTC = () => {
                 if (connRef.current) connRef.current.close();
                 if (peerRef.current) peerRef.current.destroy();
-                receiveBufferRef.current = [];
+                
+                // Close stream safely if interrupted
+                if (writerRef.current) {
+                    try { writerRef.current.abort(); } catch(e) {}
+                    writerRef.current = null;
+                }
+                
+                receiveBufferRef.current = null;
                 receivedSizeRef.current = 0;
                 receivedFileMetaRef.current = null;
-                
-                // Cleanup Object URLs to free memory ONLY when fully resetting
-                Object.values(fileUrlsRef.current).forEach(url => URL.revokeObjectURL(url));
-                fileUrlsRef.current = {};
             };
 
             const resetApp = () => {
@@ -103,7 +107,6 @@
                 setSelectedFiles([]);
                 setFileManifest([]);
                 setCurrentFileIndex(0);
-                setFileUrls({});
             };
 
             // 1. SENDER LOGIC (Host)
@@ -178,7 +181,7 @@
                             readNextChunk();
                         } else {
                             conn.send({ type: 'eof' });
-                            // Delay slightly to let receiver process and download before starting the next file
+                            // Delay slightly to let receiver process and finish stream before starting next
                             setTimeout(() => sendNextFile(conn, index + 1), 1500);
                         }
                     });
@@ -222,41 +225,58 @@
                     receivedFileMetaRef.current = data;
                     setCurrentFileIndex(data.fileIndex);
                     setConnectionState('transferring');
-                    receiveBufferRef.current = [];
+                    
+                    // --- LIVE DOWNLOAD MAGIC ---
+                    if (window.streamSaver) {
+                        // Create a stream directly to the user's disk
+                        const fileStream = window.streamSaver.createWriteStream(data.name, {
+                            size: data.size
+                        });
+                        writerRef.current = fileStream.getWriter();
+                        receiveBufferRef.current = null; // Free RAM memory
+                    } else {
+                        // Fallback to RAM memory if StreamSaver is somehow blocked
+                        receiveBufferRef.current = [];
+                    }
+
                     receivedSizeRef.current = 0;
                     setProgress(0);
                 } else if (data && data.type === 'eof') {
                     setProgress(100);
                     
-                    const meta = receivedFileMetaRef.current;
-                    if (meta) {
-                        // 1. Create the Blob and File URL
-                        const blob = new Blob(receiveBufferRef.current, { type: meta.mimeType });
-                        const url = URL.createObjectURL(blob);
-                        
-                        // 2. Store it permanently in state so the manual "Save" button ALWAYS works
-                        setFileUrls(prev => {
-                            const updated = { ...prev, [meta.fileIndex]: url };
-                            fileUrlsRef.current = updated;
-                            return updated;
-                        });
-
-                        // 3. Attempt Automatic Download
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = meta.name;
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                        
-                        // Fix applied: Removed the 2-second URL revoke here!
-                        // The URL stays alive so the Save button doesn't break for the 2nd/3rd file.
+                    if (writerRef.current) {
+                        // Close the stream, finalizing the file on the user's hard drive
+                        writerRef.current.close();
+                        writerRef.current = null;
+                    } else if (receiveBufferRef.current) {
+                        // Fallback RAM Download
+                        const meta = receivedFileMetaRef.current;
+                        if (meta) {
+                            const blob = new Blob(receiveBufferRef.current, { type: meta.mimeType });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = meta.name;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            setTimeout(() => URL.revokeObjectURL(url), 2000);
+                        }
                     }
                     
                 } else if (data && data.type === 'all_done') {
                     setConnectionState('completed');
                 } else {
-                    receiveBufferRef.current.push(data);
+                    // Streaming Binary File Data chunk
+                    if (writerRef.current) {
+                        // Write chunk directly to the disk stream immediately
+                        writerRef.current.write(new Uint8Array(data));
+                    } else if (receiveBufferRef.current) {
+                        // Fallback pushing to RAM
+                        receiveBufferRef.current.push(data);
+                    }
+                    
+                    // Update progress UI
                     receivedSizeRef.current += data.byteLength;
                     const meta = receivedFileMetaRef.current;
                     if (meta && meta.size > 0) {
@@ -423,10 +443,9 @@
                                         
                                         <div className="max-h-60 overflow-y-auto space-y-2 pr-2">
                                             {fileManifest.map((file, idx) => {
-                                                const hasUrl = !!fileUrls[idx];
-                                                const isCompleted = connectionState === 'completed' || idx < currentFileIndex || hasUrl;
-                                                const isTransferring = connectionState === 'transferring' && idx === currentFileIndex && !hasUrl;
-                                                const isPending = (connectionState === 'connecting' || idx > currentFileIndex) && !hasUrl;
+                                                const isCompleted = connectionState === 'completed' || idx < currentFileIndex;
+                                                const isTransferring = connectionState === 'transferring' && idx === currentFileIndex;
+                                                const isPending = connectionState === 'connecting' || idx > currentFileIndex;
 
                                                 const itemClass = "p-3 rounded-xl border flex items-center justify-between transition-colors " + 
                                                     (isTransferring ? "bg-white border-black shadow-sm" : 
@@ -452,7 +471,7 @@
                                                             </div>
                                                         </div>
 
-                                                        {/* Status Indicator / Download Component */}
+                                                        {/* Status Indicator */}
                                                         <div className="ml-4 shrink-0 flex items-center justify-end gap-3">
                                                             {isTransferring && (
                                                                 <div className="flex flex-col items-end gap-1 w-16">
@@ -464,14 +483,7 @@
                                                             )}
                                                             
                                                             {isCompleted && (
-                                                                <React.Fragment>
-                                                                    {mode === 'receive' && hasUrl && (
-                                                                        <a href={fileUrls[idx]} download={file.name} className="text-xs font-bold bg-black text-white px-3 py-1.5 rounded-lg hover:bg-gray-800 transition-colors">
-                                                                            Save
-                                                                        </a>
-                                                                    )}
-                                                                    <span className="text-xs font-bold text-green-600"><IconFileCheck /></span>
-                                                                </React.Fragment>
+                                                                <span className="text-xs font-bold text-green-600"><IconFileCheck /></span>
                                                             )}
                                                             
                                                             {isPending && !isTransferring && <span className="text-xs font-medium text-slate-400">...</span>}
