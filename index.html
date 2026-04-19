@@ -358,26 +358,36 @@
                                 {/* Status Header */}
                                 <div className="text-center space-y-3">
                                     {connectionState === 'connecting' && (
-                                        <><div className="text-black flex justify-center"><IconLoader /></div>
-                                        <h2 className="text-xl font-bold">{mode === 'send' ? 'Waiting for receiver...' : 'Connecting...'}</h2></>
+                                        <React.Fragment>
+                                            <div className="text-black flex justify-center"><IconLoader /></div>
+                                            <h2 className="text-xl font-bold">{mode === 'send' ? 'Waiting for receiver...' : 'Connecting...'}</h2>
+                                        </React.Fragment>
                                     )}
                                     {connectionState === 'connected' && (
-                                        <><div className="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto"><IconShare /></div>
-                                        <h2 className="text-xl font-bold">Peers Connected!</h2></>
+                                        <React.Fragment>
+                                            <div className="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto"><IconShare /></div>
+                                            <h2 className="text-xl font-bold">Peers Connected!</h2>
+                                        </React.Fragment>
                                     )}
                                     {connectionState === 'transferring' && (
-                                        <><div className="w-12 h-12 bg-gray-200 text-black rounded-full flex items-center justify-center mx-auto">
-                                            {mode === 'send' ? <IconUpload /> : <IconDownload />}
-                                        </div>
-                                        <h2 className="text-xl font-bold">{mode === 'send' ? 'Sending Data...' : 'Receiving Data...'}</h2></>
+                                        <React.Fragment>
+                                            <div className="w-12 h-12 bg-gray-200 text-black rounded-full flex items-center justify-center mx-auto">
+                                                {mode === 'send' ? <IconUpload /> : <IconDownload />}
+                                            </div>
+                                            <h2 className="text-xl font-bold">{mode === 'send' ? 'Sending Data...' : 'Receiving Data...'}</h2>
+                                        </React.Fragment>
                                     )}
                                     {connectionState === 'completed' && (
-                                        <><div className="w-12 h-12 bg-green-500 text-white rounded-full flex items-center justify-center mx-auto"><IconFileCheck /></div>
-                                        <h2 className="text-2xl font-bold text-green-600">Transfer Complete!</h2></>
+                                        <React.Fragment>
+                                            <div className="w-12 h-12 bg-green-500 text-white rounded-full flex items-center justify-center mx-auto"><IconFileCheck /></div>
+                                            <h2 className="text-2xl font-bold text-green-600">Transfer Complete!</h2>
+                                        </React.Fragment>
                                     )}
                                     {connectionState === 'disconnected' && (
-                                        <><div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto"><IconAlert /></div>
-                                        <h2 className="text-2xl font-bold text-red-600">Disconnected</h2></>
+                                        <React.Fragment>
+                                            <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto"><IconAlert /></div>
+                                            <h2 className="text-2xl font-bold text-red-600">Disconnected</h2>
+                                        </React.Fragment>
                                     )}
                                 </div>
 
@@ -407,18 +417,26 @@
                                                 const isTransferring = connectionState === 'transferring' && idx === currentFileIndex && !hasUrl;
                                                 const isPending = (connectionState === 'connecting' || idx > currentFileIndex) && !hasUrl;
 
+                                                const itemClass = "p-3 rounded-xl border flex items-center justify-between transition-colors " + 
+                                                    (isTransferring ? "bg-white border-black shadow-sm" : 
+                                                     isCompleted ? "bg-white border-slate-200 opacity-70" : 
+                                                     "bg-transparent border-transparent");
+                                                
+                                                const iconClass = "p-2 rounded-lg " + 
+                                                    (isCompleted ? "bg-green-100 text-green-600" : 
+                                                     isTransferring ? "bg-gray-100 text-black" : 
+                                                     "bg-slate-200 text-slate-400");
+                                                
+                                                const textClass = "text-sm font-semibold truncate " + (isTransferring ? "text-black" : "text-slate-600");
+
                                                 return (
-                                                    <div key={idx} className={`p-3 rounded-xl border flex items-center justify-between transition-colors ${
-                                                        isTransferring ? 'bg-white border-black shadow-sm' : 
-                                                        isCompleted ? 'bg-white border-slate-200 opacity-70' : 
-                                                        'bg-transparent border-transparent'
-                                                    }`}>
+                                                    <div key={idx} className={itemClass}>
                                                         <div className="flex items-center gap-3 overflow-hidden">
-                                                            <div className={`p-2 rounded-lg ${isCompleted ? 'bg-green-100 text-green-600' : isTransferring ? 'bg-gray-100 text-black' : 'bg-slate-200 text-slate-400'}`}>
+                                                            <div className={iconClass}>
                                                                 {isCompleted ? <IconFileCheck /> : <IconFile />}
                                                             </div>
                                                             <div className="truncate">
-                                                                <p className={`text-sm font-semibold truncate ${isTransferring ? 'text-black' : 'text-slate-600'}`}>{file.name}</p>
+                                                                <p className={textClass}>{file.name}</p>
                                                                 <p className="text-xs text-slate-500">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
                                                             </div>
                                                         </div>
@@ -429,7 +447,7 @@
                                                                 <div className="flex flex-col items-end gap-1 w-16">
                                                                     <span className="text-xs font-bold text-black">{progress}%</span>
                                                                     <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                                                                        <div className="h-full bg-black transition-all" style={{width: `${progress}%`}}></div>
+                                                                        <div className="h-full bg-black transition-all" style={{ width: progress + '%' }}></div>
                                                                     </div>
                                                                 </div>
                                                             )}
