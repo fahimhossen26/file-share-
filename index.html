@@ -70,13 +70,16 @@
             const [selectedFiles, setSelectedFiles] = useState([]);
             const [fileManifest, setFileManifest] = useState([]); // Array of { name, size }
             const [currentFileIndex, setCurrentFileIndex] = useState(0);
-            const [receivedFileMeta, setReceivedFileMeta] = useState(null);
+            
+            // State for manual download links
+            const [fileUrls, setFileUrls] = useState({});
 
             const peerRef = useRef(null);
             const connRef = useRef(null);
             const receiveBufferRef = useRef([]);
             const receivedSizeRef = useRef(0);
             const receivedFileMetaRef = useRef(null);
+            const fileUrlsRef = useRef({});
 
             const cleanupWebRTC = () => {
                 if (connRef.current) connRef.current.close();
@@ -84,6 +87,10 @@
                 receiveBufferRef.current = [];
                 receivedSizeRef.current = 0;
                 receivedFileMetaRef.current = null;
+                
+                // Cleanup Object URLs to free memory ONLY when fully resetting
+                Object.values(fileUrlsRef.current).forEach(url => URL.revokeObjectURL(url));
+                fileUrlsRef.current = {};
             };
 
             const resetApp = () => {
@@ -96,7 +103,7 @@
                 setSelectedFiles([]);
                 setFileManifest([]);
                 setCurrentFileIndex(0);
-                setReceivedFileMeta(null);
+                setFileUrls({});
             };
 
             // 1. SENDER LOGIC (Host)
@@ -219,9 +226,33 @@
                     receivedSizeRef.current = 0;
                     setProgress(0);
                 } else if (data && data.type === 'eof') {
-                    // Auto-download when the current file reaches EOF
                     setProgress(100);
-                    downloadFile();
+                    
+                    const meta = receivedFileMetaRef.current;
+                    if (meta) {
+                        // 1. Create the Blob and File URL
+                        const blob = new Blob(receiveBufferRef.current, { type: meta.mimeType });
+                        const url = URL.createObjectURL(blob);
+                        
+                        // 2. Store it permanently in state so the manual "Save" button ALWAYS works
+                        setFileUrls(prev => {
+                            const updated = { ...prev, [meta.fileIndex]: url };
+                            fileUrlsRef.current = updated;
+                            return updated;
+                        });
+
+                        // 3. Attempt Automatic Download
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = meta.name;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        
+                        // Fix applied: Removed the 2-second URL revoke here!
+                        // The URL stays alive so the Save button doesn't break for the 2nd/3rd file.
+                    }
+                    
                 } else if (data && data.type === 'all_done') {
                     setConnectionState('completed');
                 } else {
@@ -232,22 +263,6 @@
                         setProgress(Math.min(100, Math.round((receivedSizeRef.current / meta.size) * 100)));
                     }
                 }
-            };
-
-            const downloadFile = () => {
-                const meta = receivedFileMetaRef.current;
-                if (!meta) return;
-                
-                const blob = new Blob(receiveBufferRef.current, { type: meta.mimeType });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = meta.name;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                
-                setTimeout(() => URL.revokeObjectURL(url), 2000);
             };
 
             const copyCode = () => {
@@ -306,7 +321,7 @@
                             <div className="space-y-8 slide-right">
                                 <div className="text-center space-y-2">
                                     <h2 className="text-xl font-bold text-slate-800">Send Files</h2>
-                                    <p className="text-slate-500 text-sm">Select files to generate a code.</p>
+                                    <p className="text-slate-500 text-sm">Select one or more files to generate a code.</p>
                                 </div>
                                 <div className="space-y-4">
                                     <div className="relative group cursor-pointer border-2 border-dashed border-slate-300 rounded-2xl hover:border-black transition-colors p-8 bg-slate-50 flex flex-col items-center text-center">
@@ -408,9 +423,10 @@
                                         
                                         <div className="max-h-60 overflow-y-auto space-y-2 pr-2">
                                             {fileManifest.map((file, idx) => {
-                                                const isCompleted = connectionState === 'completed' || idx < currentFileIndex;
-                                                const isTransferring = connectionState === 'transferring' && idx === currentFileIndex;
-                                                const isPending = connectionState === 'connecting' || idx > currentFileIndex;
+                                                const hasUrl = !!fileUrls[idx];
+                                                const isCompleted = connectionState === 'completed' || idx < currentFileIndex || hasUrl;
+                                                const isTransferring = connectionState === 'transferring' && idx === currentFileIndex && !hasUrl;
+                                                const isPending = (connectionState === 'connecting' || idx > currentFileIndex) && !hasUrl;
 
                                                 const itemClass = "p-3 rounded-xl border flex items-center justify-between transition-colors " + 
                                                     (isTransferring ? "bg-white border-black shadow-sm" : 
@@ -437,7 +453,7 @@
                                                         </div>
 
                                                         {/* Status Indicator / Download Component */}
-                                                        <div className="ml-4 shrink-0 flex items-center justify-end">
+                                                        <div className="ml-4 shrink-0 flex items-center justify-end gap-3">
                                                             {isTransferring && (
                                                                 <div className="flex flex-col items-end gap-1 w-16">
                                                                     <span className="text-xs font-bold text-black">{progress}%</span>
@@ -448,7 +464,14 @@
                                                             )}
                                                             
                                                             {isCompleted && (
-                                                                <span className="text-xs font-bold text-green-600"><IconFileCheck /></span>
+                                                                <React.Fragment>
+                                                                    {mode === 'receive' && hasUrl && (
+                                                                        <a href={fileUrls[idx]} download={file.name} className="text-xs font-bold bg-black text-white px-3 py-1.5 rounded-lg hover:bg-gray-800 transition-colors">
+                                                                            Save
+                                                                        </a>
+                                                                    )}
+                                                                    <span className="text-xs font-bold text-green-600"><IconFileCheck /></span>
+                                                                </React.Fragment>
                                                             )}
                                                             
                                                             {isPending && !isTransferring && <span className="text-xs font-medium text-slate-400">...</span>}
