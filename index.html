@@ -66,12 +66,14 @@
             const connRef = useRef(null);
             const receiveBufferRef = useRef([]);
             const receivedSizeRef = useRef(0);
+            const receivedFileMetaRef = useRef(null); // Fix: Added ref to track metadata
 
             const cleanupWebRTC = () => {
                 if (connRef.current) connRef.current.close();
                 if (peerRef.current) peerRef.current.destroy();
                 receiveBufferRef.current = [];
                 receivedSizeRef.current = 0;
+                receivedFileMetaRef.current = null;
             };
 
             const resetApp = () => {
@@ -193,6 +195,7 @@
                 // PeerJS automatically parses JSON objects if sent that way
                 if (data && data.type === 'meta') {
                     setReceivedFileMeta(data);
+                    receivedFileMetaRef.current = data; // Fix: Sync ref with state
                     setConnectionState('transferring');
                     receiveBufferRef.current = [];
                     receivedSizeRef.current = 0;
@@ -214,12 +217,16 @@
             };
 
             const downloadFile = () => {
-                if (!receivedFileMeta) return;
-                const blob = new Blob(receiveBufferRef.current, { type: receivedFileMeta.mimeType });
+                const meta = receivedFileMetaRef.current; // Fix: Use ref instead of state
+                if (!meta) {
+                    console.error("No file metadata found to download.");
+                    return;
+                }
+                const blob = new Blob(receiveBufferRef.current, { type: meta.mimeType });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = receivedFileMeta.name;
+                a.download = meta.name;
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
