@@ -219,6 +219,7 @@
                     receivedSizeRef.current = 0;
                     setProgress(0);
                 } else if (data && data.type === 'eof') {
+                    // Auto-download when the current file reaches EOF
                     setProgress(100);
                     downloadFile();
                 } else if (data && data.type === 'all_done') {
