@@ -301,11 +301,15 @@
                 navigator.clipboard.writeText(pairingCode).catch(()=>{});
             };
 
+            // Enhanced to append files instead of replacing
             const handleFileSelect = (e) => {
                 if (e.target.files && e.target.files.length > 0) {
-                    const files = Array.from(e.target.files);
-                    setSelectedFiles(files);
-                    setFileManifest(files.map(f => ({ name: f.name, size: f.size })));
+                    const newFiles = Array.from(e.target.files);
+                    setSelectedFiles(prev => [...prev, ...newFiles]);
+                    setFileManifest(prev => [...prev, ...newFiles.map(f => ({ name: f.name, size: f.size }))]);
+                    
+                    // Clear the input value so the same file can be selected again if needed
+                    e.target.value = '';
                 }
             };
 
@@ -319,13 +323,14 @@
                 setIsDragging(false);
             };
 
+            // Enhanced to append dropped files instead of replacing
             const handleDrop = (e) => {
                 e.preventDefault();
                 setIsDragging(false);
                 if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                    const files = Array.from(e.dataTransfer.files);
-                    setSelectedFiles(files);
-                    setFileManifest(files.map(f => ({ name: f.name, size: f.size })));
+                    const newFiles = Array.from(e.dataTransfer.files);
+                    setSelectedFiles(prev => [...prev, ...newFiles]);
+                    setFileManifest(prev => [...prev, ...newFiles.map(f => ({ name: f.name, size: f.size }))]);
                 }
             };
 
@@ -384,12 +389,14 @@
                                     >
                                         <input type="file" multiple className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" onChange={handleFileSelect} />
                                         <div className={`p-4 shadow-sm rounded-full transition-colors mb-3 ${isDragging ? 'bg-black text-white' : 'bg-white text-slate-500 group-hover:bg-black group-hover:text-white'}`}><IconFiles /></div>
-                                        <span className="font-semibold text-black text-lg">Select or Drop Files</span>
+                                        <span className="font-semibold text-black text-lg">
+                                            {selectedFiles.length > 0 ? 'Select or Drop More Files' : 'Select or Drop Files'}
+                                        </span>
                                         {selectedFiles.length === 0 && (
                                             <span className="text-sm text-slate-500 mt-1 pointer-events-none">Drag and drop your files here</span>
                                         )}
                                         {selectedFiles.length > 0 && (
-                                            <div className="mt-4 flex flex-col items-center bg-green-50 px-4 py-3 rounded-xl border border-green-100 pointer-events-none">
+                                            <div className="mt-4 flex flex-col items-center bg-green-50 px-4 py-3 rounded-xl border border-green-100 pointer-events-none relative">
                                                 <div className="text-sm text-green-700 font-semibold flex items-center gap-2">
                                                     <IconFileCheck /> 
                                                     {selectedFiles.length === 1 ? selectedFiles[0].name : `${selectedFiles.length} files selected`}
