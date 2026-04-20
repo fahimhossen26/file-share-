@@ -92,6 +92,7 @@
             const writerRef = useRef(null); 
             const receivedSizeRef = useRef(0);
             const receivedFileMetaRef = useRef(null);
+            const dragCounterRef = useRef(0); // Fixes UI flicker when dragging over child elements
 
             const cleanupWebRTC = () => {
                 if (connRef.current) {
@@ -124,6 +125,7 @@
                 setFileManifest([]);
                 setCurrentFileIndex(0);
                 setIsDragging(false);
+                dragCounterRef.current = 0;
             };
 
             // 1. SENDER LOGIC (Host)
@@ -140,7 +142,7 @@
                 peerRef.current = peer;
 
                 peer.on('connection', (conn) => {
-                    // BUG FIX: Prevent hijacking. Reject new connections if already connected
+                    // Prevent hijacking. Reject new connections if already connected
                     if (connRef.current) {
                         conn.on('open', () => {
                             conn.send({ type: 'error', message: 'This pairing code is already in use by someone else.' });
@@ -172,6 +174,9 @@
             };
 
             const sendNextFile = (conn, index) => {
+                // Check if connection was closed manually before trying to send
+                if (!conn || !conn.open) return;
+
                 if (index >= selectedFiles.length) {
                     conn.send({ type: 'all_done' });
                     setConnectionState('completed');
@@ -194,6 +199,13 @@
                 });
 
                 const readNextChunk = () => {
+                    // Safe guard: If receiver disconnects abruptly, stop reading
+                    if (!conn || !conn.open) {
+                        setErrorMessage("Connection lost. Receiver may have disconnected.");
+                        setConnectionState('disconnected');
+                        return;
+                    }
+
                     if (conn.dataChannel && conn.dataChannel.bufferedAmount > 1024 * 1024 * 2) {
                         setTimeout(readNextChunk, 50);
                         return;
@@ -201,15 +213,20 @@
 
                     const slice = file.slice(offset, offset + chunkSize);
                     slice.arrayBuffer().then((buffer) => {
-                        conn.send(buffer);
-                        offset += buffer.byteLength;
-                        setProgress(Math.min(100, Math.round((offset / file.size) * 100)));
+                        try {
+                            conn.send(buffer);
+                            offset += buffer.byteLength;
+                            setProgress(Math.min(100, Math.round((offset / file.size) * 100)));
 
-                        if (offset < file.size) {
-                            readNextChunk();
-                        } else {
-                            conn.send({ type: 'eof' });
-                            setTimeout(() => sendNextFile(conn, index + 1), 1500);
+                            if (offset < file.size) {
+                                readNextChunk();
+                            } else {
+                                conn.send({ type: 'eof' });
+                                setTimeout(() => sendNextFile(conn, index + 1), 1500);
+                            }
+                        } catch (e) {
+                            console.error("Chunk send error", e);
+                            setConnectionState('disconnected');
                         }
                     });
                 };
@@ -262,12 +279,18 @@
                     setCurrentFileIndex(data.fileIndex);
                     setConnectionState('transferring');
                     
+                    // SAFEGUARD: Use try-catch for StreamSaver since strict browsers/iframes block it
                     if (window.streamSaver) {
-                        const fileStream = window.streamSaver.createWriteStream(data.name, {
-                            size: data.size
-                        });
-                        writerRef.current = fileStream.getWriter();
-                        receiveBufferRef.current = null; 
+                        try {
+                            const fileStream = window.streamSaver.createWriteStream(data.name, {
+                                size: data.size
+                            });
+                            writerRef.current = fileStream.getWriter();
+                            receiveBufferRef.current = null; 
+                        } catch (err) {
+                            console.warn("StreamSaver blocked by browser policy, falling back to RAM.", err);
+                            receiveBufferRef.current = [];
+                        }
                     } else {
                         receiveBufferRef.current = [];
                     }
@@ -316,6 +339,7 @@
                 navigator.clipboard.writeText(pairingCode).catch(()=>{});
             };
 
+            // Enhanced File Selection and Drag & Drop
             const handleFileSelect = (e) => {
                 if (e.target.files && e.target.files.length > 0) {
                     const newFiles = Array.from(e.target.files);
@@ -325,19 +349,35 @@
                 }
             };
 
-            const handleDragOver = (e) => {
+            const handleDragEnter = (e) => {
                 e.preventDefault();
-                setIsDragging(true);
+                e.stopPropagation();
+                dragCounterRef.current++;
+                if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+                    setIsDragging(true);
+                }
             };
 
             const handleDragLeave = (e) => {
                 e.preventDefault();
-                setIsDragging(false);
+                e.stopPropagation();
+                dragCounterRef.current--;
+                if (dragCounterRef.current === 0) {
+                    setIsDragging(false);
+                }
+            };
+
+            const handleDragOver = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
             };
 
             const handleDrop = (e) => {
                 e.preventDefault();
+                e.stopPropagation();
                 setIsDragging(false);
+                dragCounterRef.current = 0;
+                
                 if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
                     const newFiles = Array.from(e.dataTransfer.files);
                     setSelectedFiles(prev => [...prev, ...newFiles]);
@@ -394,6 +434,7 @@
                                 <div className="space-y-4">
                                     <div 
                                         className={`relative group cursor-pointer border-2 border-dashed rounded-2xl transition-all duration-200 p-8 flex flex-col items-center text-center ${isDragging ? 'border-black bg-slate-100 scale-[1.02]' : 'border-slate-300 hover:border-black bg-slate-50'}`}
+                                        onDragEnter={handleDragEnter}
                                         onDragOver={handleDragOver}
                                         onDragLeave={handleDragLeave}
                                         onDrop={handleDrop}
