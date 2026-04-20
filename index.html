@@ -81,23 +81,28 @@
             
             // Multiple Files State
             const [selectedFiles, setSelectedFiles] = useState([]);
-            const [fileManifest, setFileManifest] = useState([]); // Array of { name, size }
+            const [fileManifest, setFileManifest] = useState([]); 
             const [currentFileIndex, setCurrentFileIndex] = useState(0);
             const [isDragging, setIsDragging] = useState(false);
 
             const peerRef = useRef(null);
             const connRef = useRef(null);
             
-            const receiveBufferRef = useRef(null); // Used only as a fallback if StreamSaver fails
-            const writerRef = useRef(null); // StreamSaver direct-to-disk writer
+            const receiveBufferRef = useRef(null); 
+            const writerRef = useRef(null); 
             const receivedSizeRef = useRef(0);
             const receivedFileMetaRef = useRef(null);
 
             const cleanupWebRTC = () => {
-                if (connRef.current) connRef.current.close();
-                if (peerRef.current) peerRef.current.destroy();
+                if (connRef.current) {
+                    connRef.current.close();
+                    connRef.current = null;
+                }
+                if (peerRef.current) {
+                    peerRef.current.destroy();
+                    peerRef.current = null;
+                }
                 
-                // Close stream safely if interrupted
                 if (writerRef.current) {
                     try { writerRef.current.abort(); } catch(e) {}
                     writerRef.current = null;
@@ -135,6 +140,15 @@
                 peerRef.current = peer;
 
                 peer.on('connection', (conn) => {
+                    // BUG FIX: Prevent hijacking. Reject new connections if already connected
+                    if (connRef.current) {
+                        conn.on('open', () => {
+                            conn.send({ type: 'error', message: 'This pairing code is already in use by someone else.' });
+                            setTimeout(() => conn.close(), 500);
+                        });
+                        return;
+                    }
+
                     connRef.current = conn;
                     
                     conn.on('open', () => {
@@ -145,6 +159,8 @@
                     
                     conn.on('close', () => {
                         if (connectionState !== 'completed') setConnectionState('disconnected');
+                        // Free the room if receiver disconnects prematurely
+                        connRef.current = null;
                     });
                 });
 
@@ -166,7 +182,7 @@
                 setConnectionState('transferring');
                 
                 const file = selectedFiles[index];
-                const chunkSize = 65536; // 64KB chunks
+                const chunkSize = 65536; 
                 let offset = 0;
 
                 conn.send({ 
@@ -193,7 +209,6 @@
                             readNextChunk();
                         } else {
                             conn.send({ type: 'eof' });
-                            // Delay slightly to let receiver process and finish stream before starting next
                             setTimeout(() => sendNextFile(conn, index + 1), 1500);
                         }
                     });
@@ -221,6 +236,7 @@
                     conn.on('data', (data) => handleReceiveMessage(data));
                     conn.on('close', () => {
                         if (connectionState !== 'completed') setConnectionState('disconnected');
+                        connRef.current = null;
                     });
                 });
 
@@ -231,6 +247,14 @@
             };
 
             const handleReceiveMessage = (data) => {
+                // Handle Room Full Error
+                if (data && data.type === 'error') {
+                    setErrorMessage(data.message);
+                    cleanupWebRTC();
+                    setMode('receive_setup');
+                    return;
+                }
+
                 if (data && data.type === 'manifest') {
                     setFileManifest(data.files);
                 } else if (data && data.type === 'meta') {
@@ -238,16 +262,13 @@
                     setCurrentFileIndex(data.fileIndex);
                     setConnectionState('transferring');
                     
-                    // --- LIVE DOWNLOAD MAGIC ---
                     if (window.streamSaver) {
-                        // Create a stream directly to the user's disk
                         const fileStream = window.streamSaver.createWriteStream(data.name, {
                             size: data.size
                         });
                         writerRef.current = fileStream.getWriter();
-                        receiveBufferRef.current = null; // Free RAM memory
+                        receiveBufferRef.current = null; 
                     } else {
-                        // Fallback to RAM memory if StreamSaver is somehow blocked
                         receiveBufferRef.current = [];
                     }
 
@@ -257,11 +278,9 @@
                     setProgress(100);
                     
                     if (writerRef.current) {
-                        // Close the stream, finalizing the file on the user's hard drive
                         writerRef.current.close();
                         writerRef.current = null;
                     } else if (receiveBufferRef.current) {
-                        // Fallback RAM Download
                         const meta = receivedFileMetaRef.current;
                         if (meta) {
                             const blob = new Blob(receiveBufferRef.current, { type: meta.mimeType });
@@ -279,16 +298,12 @@
                 } else if (data && data.type === 'all_done') {
                     setConnectionState('completed');
                 } else {
-                    // Streaming Binary File Data chunk
                     if (writerRef.current) {
-                        // Write chunk directly to the disk stream immediately
                         writerRef.current.write(new Uint8Array(data));
                     } else if (receiveBufferRef.current) {
-                        // Fallback pushing to RAM
                         receiveBufferRef.current.push(data);
                     }
                     
-                    // Update progress UI
                     receivedSizeRef.current += data.byteLength;
                     const meta = receivedFileMetaRef.current;
                     if (meta && meta.size > 0) {
@@ -301,14 +316,11 @@
                 navigator.clipboard.writeText(pairingCode).catch(()=>{});
             };
 
-            // Enhanced to append files instead of replacing
             const handleFileSelect = (e) => {
                 if (e.target.files && e.target.files.length > 0) {
                     const newFiles = Array.from(e.target.files);
                     setSelectedFiles(prev => [...prev, ...newFiles]);
                     setFileManifest(prev => [...prev, ...newFiles.map(f => ({ name: f.name, size: f.size }))]);
-                    
-                    // Clear the input value so the same file can be selected again if needed
                     e.target.value = '';
                 }
             };
@@ -323,7 +335,6 @@
                 setIsDragging(false);
             };
 
-            // Enhanced to append dropped files instead of replacing
             const handleDrop = (e) => {
                 e.preventDefault();
                 setIsDragging(false);
@@ -550,6 +561,7 @@
                             </div>
                         )}
                     </main>
+                    
                 </div>
             );
         }
